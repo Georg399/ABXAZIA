@@ -3,7 +3,6 @@ import sqlite3
 import asyncio
 import re
 from socket import has_dualstack_ipv6
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 import aiohttp
@@ -305,7 +304,7 @@ async def daNET(update, context, tg_id, full_name, phone, position):
         InlineKeyboardButton("❌ ОТКЛОНИТЬ", callback_data=f"moder_no_{tg_id}")
     ]]
 
-    admID = [2050385976]  
+    admID = [2050385976]
 
     for adminID in admID:
         await context.bot.send_message(
@@ -332,7 +331,7 @@ async def obrDaNet(update, text):
         update_user_status(userTG_id, 'confirmed')
         await query.edit_message_text('✅ Анкета подтверждена')
         keyboard = [[InlineKeyboardButton('Перейти к оплате', callback_data=f"pay_{userTG_id}")]]
-        await text.bot.send_message(chat_id=userTG_id,text='✅ Ваша анкета подтверждена! Теперь вы можете оплатить билет.\n\nНажмите кнопку ниже для оплаты:',reply_markup=InlineKeyboardMarkup(keyboard))
+        await text.bot.send_message(chat_id=userTG_id,text='✅ Ваша анкета подтверждена! Теперь вы можете оплатить билет.\n',reply_markup=InlineKeyboardMarkup(keyboard))
     elif action == 'no':
         update_user_status(userTG_id, 'rejected')
         await query.edit_message_text('❌ Анкета отклонена')
