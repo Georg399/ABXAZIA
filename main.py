@@ -300,13 +300,12 @@ def saveID(user_id, user_data):
 
 
 async def daNET(update, context, tg_id, full_name, phone, position):
-    """Отправка анкеты админам на модерацию"""
     key = [[
         InlineKeyboardButton("✅ ПРИНЯТЬ", callback_data=f"moder_yes_{tg_id}"),
         InlineKeyboardButton("❌ ОТКЛОНИТЬ", callback_data=f"moder_no_{tg_id}")
     ]]
 
-    admID = [2050385976]  # ID админов
+    admID = [2050385976]  
 
     for adminID in admID:
         await context.bot.send_message(
@@ -330,17 +329,10 @@ async def obrDaNet(update, text):
     action = parts[1]
     userTG_id = int(parts[2])
     if action == 'yes':
-        # Обновляем статус в БД
         update_user_status(userTG_id, 'confirmed')
         await query.edit_message_text('✅ Анкета подтверждена')
-
-        # ТОЛЬКО ПОСЛЕ ОДОБРЕНИЯ отправляем пользователю кнопку оплаты
         keyboard = [[InlineKeyboardButton('Перейти к оплате', callback_data=f"pay_{userTG_id}")]]
-        await text.bot.send_message(
-            chat_id=userTG_id,
-            text='✅ Ваша анкета подтверждена! Теперь вы можете оплатить билет.\n\nНажмите кнопку ниже для оплаты:',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await text.bot.send_message(chat_id=userTG_id,text='✅ Ваша анкета подтверждена! Теперь вы можете оплатить билет.\n\nНажмите кнопку ниже для оплаты:',reply_markup=InlineKeyboardMarkup(keyboard))
     elif action == 'no':
         update_user_status(userTG_id, 'rejected')
         await query.edit_message_text('❌ Анкета отклонена')
