@@ -91,69 +91,67 @@ async def anketa(update, text):
         reply_markup=marker2)
 
 
-fio, fiAmbasador, cdek, proverka = range(4)  # Убираем zavershenie, возвращаем как было
+fio, fiAmbasador, cdek, podarok = range(4)
+
+
 async def prodolzit(update, text):
     apdate = update.callback_query
     await apdate.answer()
     await text.bot.send_message(chat_id=update.effective_chat.id, text="✍️ Введите ваше ФИО:")
     return fio
 
-async def fiAmbasador1(update, text):
-    text.user_data["fio"] = update.message.text
-    await text.bot.send_message(chat_id=update.effective_chat.id, text="🌟Укажите ваш контактный номер")
+
+async def fiAmbasador1(update, context):
+    context.user_data["fio"] = update.message.text
+    await update.message.reply_text("🌟 Укажите ваш контактный номер:")
     return fiAmbasador
 
-async def cdek1(update, text):
-    text.user_data["fiAmbasador"] = update.message.text
-    await text.bot.send_message(chat_id=update.effective_chat.id, text="🤑Ваша должность:")
+
+async def cdek1(update, context):
+    context.user_data["fiAmbasador"] = update.message.text
+    await update.message.reply_text("🤑 Ваша должность:")
     return cdek
 
+
 async def podarok1(update, text):
-    text.user_data["dolznost"] = update.message.text
-    await text.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="🎁 Есть промокод?\nЕсли у вас есть секретный ключ к скидке - введите его ниже!\nИли просто отправьте '-' чтобы продолжить:"
-    )
-    return proverka
-
-
-async def proverkaProm(update, context):
-    promocode = update.message.text.strip()
-
-    if promocode.lower() == promo.lower():
-        await update.message.reply_text("🎉 Промокод принят!")
-        context.user_data["promo"] = promo
-        return await conets(update, context)
-
-    elif promocode == "-":
-        await update.message.reply_text("Продолжаем без промокода.")
-        context.user_data["promo"] = "all"
-        return await conets(update, context)
-
-    else:
-        await update.message.reply_text("❌ Неверный промокод.\nПопробуйте ещё или отправьте '-'")
-        return proverka
+    text.user_data["sdek_adress"] = update.message.text
+    await text.bot.send_message(chat_id=update.effective_chat.id,text="🎁Есть промокод?\nЕсли у вас есть секретный ключ к скидке - введите его ниже!\nИли просто отправьте '-' чтобы продолжить:")
+    return podarok
 
 async def conets(update, text):
-    tg_id = update.effective_chat.id
     full_name = text.user_data.get("fio", "")
-    sdek = text.user_data.get("dolznost", "")
     FIO_ambasador = text.user_data.get("fiAmbasador", "")
-    category = text.user_data.get("promo", "all")
-    regUS(tg_id, full_name, sdek, FIO_ambasador, category)
+    sdek = text.user_data.get("sdek_adress", "")
+    PromoUS = update.message.text.strip()
+    text.user_data["promo"] = PromoUS
+    tg_id = update.effective_chat.id
+    chena = 2123
+    OKChena = chena
+    if PromoUS == promo:
+        discount_percent = 10
+        OKChena = int(chena - (chena * discount_percent / 100))
+        await update.message.reply_text(f"✅Промокод принят\nСкидка 10%\nК оплате: {OKChena}")
+    elif PromoUS == "-":
+        await update.message.reply_text("Продолжаем без промокода.")
+    else:
+        await update.message.reply_text("❌ Неверный промокод.\nПродолжаем без скидки.")
+    regUS(tg_id, full_name, sdek, FIO_ambasador, PromoUS)
     await daNET(update, text, tg_id, full_name, FIO_ambasador, sdek)
-    await update.message.reply_text("✅ Анкета отправлена на проверку, мы сообщим о результате")
+    await update.message.reply_text("Анкета отправлена на модерацию.\nОжидайте")
+    keyboard = [[InlineKeyboardButton(f"Заплатить {OKChena} RUB",callback_data="pay")],[InlineKeyboardButton("Отмена", callback_data="back")]]
+    await update.message.reply_text("<b>Предзаказ ТЕСТ</b>\nВаш заказ оформлен",parse_mode="HTML",reply_markup=InlineKeyboardMarkup(keyboard))
     return ConversationHandler.END
 
+
 obrab = ConversationHandler(
-    entry_points=[CallbackQueryHandler(prodolzit, pattern="^prod$")],
+    entry_points=[CallbackQueryHandler(prodolzit, pattern='^prod$')],
     states={
         fio: [MessageHandler(filters.TEXT & ~filters.COMMAND, fiAmbasador1)],
         fiAmbasador: [MessageHandler(filters.TEXT & ~filters.COMMAND, cdek1)],
         cdek: [MessageHandler(filters.TEXT & ~filters.COMMAND, podarok1)],
-        proverka: [MessageHandler(filters.TEXT & ~filters.COMMAND, proverkaProm)],
+        podarok: [MessageHandler(filters.TEXT & ~filters.COMMAND, conets)],
     },
-    fallbacks=[],
+    fallbacks=[CommandHandler("exit", conets)],
 )
 
 
@@ -327,9 +325,9 @@ async def obrDaNet(update,text):
         await query.edit_message_text(chat_id=userTG_id,text="❌ К сожалению, ваша анкета не прошла модерацию. Свяжитесь с поддержкой для уточнения инфорации.")
 
 def update_user_statys(tg_id, status):
-    conn = sqlite3.connect('bot_base.db')
+    conn = sqlite3.connect('user.db')
     BD = conn.cursor()
-    BD.execute('''UPDATE user SET status=?, modereted_at=CURRENT_TIMSTAMP WHERE telegram_id=? ''', (status, tg_id))
+    BD.execute('''UPDATE user SET status=?, moderated_at=CURRENT_TIMESTAMP WHERE telegram_id=?''', (status, tg_id))
     conn.commit()
     conn.close()
     print(f'статус юзера {tg_id} изменен на {status}')
