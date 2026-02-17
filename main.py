@@ -2,6 +2,8 @@ import os
 import sqlite3
 import asyncio
 import re
+from socket import has_dualstack_ipv6
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 import aiohttp
@@ -72,10 +74,7 @@ def bd():
 def regUS(tg_id, name, sdek, ambasador, category="all"):
     conn = sqlite3.connect("user.db")
     BD = conn.cursor()
-    BD.execute('''
-    INSERT OR REPLACE INTO user(telegram_id, full_name, sdek_adress, FIO_ambasador, category_bilet)
-    VALUES(?,?,?,?,?)
-    ''', (tg_id, name, sdek, ambasador, category))
+    BD.execute('''INSERT OR REPLACE INTO user(telegram_id, full_name, sdek_adress, FIO_ambasador, category_bilet)VALUES(?,?,?,?,?)''', (tg_id, name, sdek, ambasador, category))
     conn.commit()
     conn.close()
     print(f"Пользователь {name} зарегистрирован")
@@ -138,8 +137,6 @@ async def conets(update, text):
     regUS(tg_id, full_name, sdek, FIO_ambasador, PromoUS)
     await daNET(update, text, tg_id, full_name, FIO_ambasador, sdek)
     await update.message.reply_text("Анкета отправлена на модерацию.\nОжидайте")
-    keyboard = [[InlineKeyboardButton(f"Заплатить {OKChena} RUB",callback_data="pay")],[InlineKeyboardButton("Отмена", callback_data="back")]]
-    await update.message.reply_text("<b>Предзаказ ТЕСТ</b>\nВаш заказ оформлен",parse_mode="HTML",reply_markup=InlineKeyboardMarkup(keyboard))
     return ConversationHandler.END
 
 
@@ -301,36 +298,65 @@ def saveID(user_id, user_data):
     conn.close()
     return new_id
 
-async def daNET(update, context, tg_id, full_name, phone, position):
-    rand_id = str(tg_id)
-    key = [[InlineKeyboardButton("✅ ДА", callback_data=f"moder_yes_{tg_id}"),InlineKeyboardButton("❌ НЕТ", callback_data=f"moder_no_{tg_id}")]]
-    await context.bot.send_message(chat_id=admID,text=f"Новая анкета\nот {context.user_data['fio']}\nf""Должность: {context.user_data['dolznost']}",reply_markup=InlineKeyboardMarkup(key),parse_mode="Markdown")
-    for adminID in admID:
-        await context.bot.send_message(chat_id = adminID,text=f'Анкета:\nФИО:{full_name}\nТелефон:{phone}\nдолжность:{position}\nid:{tg_id}', reply_markup=InlineKeyboardMarkup(key))
 
-async def obrDaNet(update,text):
+async def daNET(update, context, tg_id, full_name, phone, position):
+    """Отправка анкеты админам на модерацию"""
+    key = [[
+        InlineKeyboardButton("✅ ПРИНЯТЬ", callback_data=f"moder_yes_{tg_id}"),
+        InlineKeyboardButton("❌ ОТКЛОНИТЬ", callback_data=f"moder_no_{tg_id}")
+    ]]
+
+    admID = [2050385976]  # ID админов
+
+    for adminID in admID:
+        await context.bot.send_message(
+            chat_id=adminID,
+            text=f"📝 Новая анкета на модерацию:\n\n"
+                 f"ФИО: {full_name}\n"
+                 f"Телефон: {phone}\n"
+                 f"Должность: {position}\n"
+                 f"ID: {tg_id}",
+            reply_markup=InlineKeyboardMarkup(key)
+        )
+
+
+async def obrDaNet(update, text):
     query = update.callback_query
     await query.answer()
     data = query.data
-    action = data.split('_')[1]
-    userTG_id = int(data.split('_')[2])
+    parts = data.split('_')
+    if len(parts) < 3:
+        return
+    action = parts[1]
+    userTG_id = int(parts[2])
     if action == 'yes':
-        update_user_statys(userTG_id, 'confirmed')
+        # Обновляем статус в БД
+        update_user_status(userTG_id, 'confirmed')
         await query.edit_message_text('✅ Анкета подтверждена')
-        await text.bot.send_message(chat_id = userTG_id,text='✅ Анкета подтверждена, теперь вы можите оплатичвать билет')
-        key = [InlineKeyboardButton('Перейти к оплате', callback_data=f"pay{userTG_id}")]
-        await text.bot.send_message(chat_id=userTG_id,text='Для оплаты билета нажмите кнопку ниже:',reply_markup=InlineKeyboardMarkup(key))
-    elif action == 'no':
-        update_user_statys(userTG_id, 'rejected')
-        await query.edit_message_text(chat_id=userTG_id,text="❌ К сожалению, ваша анкета не прошла модерацию. Свяжитесь с поддержкой для уточнения инфорации.")
 
-def update_user_statys(tg_id, status):
+        # ТОЛЬКО ПОСЛЕ ОДОБРЕНИЯ отправляем пользователю кнопку оплаты
+        keyboard = [[InlineKeyboardButton('Перейти к оплате', callback_data=f"pay_{userTG_id}")]]
+        await text.bot.send_message(
+            chat_id=userTG_id,
+            text='✅ Ваша анкета подтверждена! Теперь вы можете оплатить билет.\n\nНажмите кнопку ниже для оплаты:',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif action == 'no':
+        update_user_status(userTG_id, 'rejected')
+        await query.edit_message_text('❌ Анкета отклонена')
+        await text.bot.send_message(
+            chat_id=userTG_id,
+            text="❌ К сожалению, ваша анкета не прошла модерацию. Свяжитесь с поддержкой для уточнения информации."
+        )
+
+
+def update_user_status(tg_id, status):
     conn = sqlite3.connect('user.db')
     BD = conn.cursor()
     BD.execute('''UPDATE user SET status=?, moderated_at=CURRENT_TIMESTAMP WHERE telegram_id=?''', (status, tg_id))
     conn.commit()
     conn.close()
-    print(f'статус юзера {tg_id} изменен на {status}')
+    print(f'Статус пользователя {tg_id} изменен на {status}')
 
 def main():
     bd()
