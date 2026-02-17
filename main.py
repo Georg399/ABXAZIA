@@ -293,7 +293,7 @@ async def proverka(update, text):
         await query.edit_message_text(text="Оплата прошла",reply_markup=oplacheniePolzovat)
 
 def saveID(user_id, user_data):
-    conn = sqlite3.connect('bot_base.db')
+    conn = sqlite3.connect('user.db')
     cursor = conn.cursor()
     cursor.execute("INSERT INTO ankety (user_id, fio, phone, position) VALUES (?, ?, ?, ?)",(user_id, user_data['fio'], user_data['fiAmbasador'], user_data['dolznost']))
     new_id = cursor.lastrowid
